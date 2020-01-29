@@ -9,16 +9,16 @@ if __name__ == '__main__':
     except ConnectionRefusedError:
         print("Failed to connect to Server")
         connected = False
-    except:
-        print("Unknown error")
+    except Exception as e:
+        print("Error: " + str(e))
         connected = False
 
     testString = "WHAT FUCK"
 
     try:
         mySocket.send(testString.encode())
-    except:
-        print("Unknown Error")
+    except Exception as e:
+        print("Error: " + str(e))
         connected = False
 
     while connected:
@@ -28,6 +28,6 @@ if __name__ == '__main__':
         except ConnectionResetError:
             print("Server was closed unexpectedly")
             connected = False
-        except:
-            print("Unknown Error")
+        except Exception as e:
+            print("Error: " + str(e))
             connected = False

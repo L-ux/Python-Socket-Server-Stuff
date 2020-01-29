@@ -16,6 +16,10 @@ if __name__ == '__main__':
 
     while True:
         testString = str(seqID) + ":" + time.ctime()
-        client[0].send(testString.encode())
+        try:
+            client[0].send(testString.encode())
+        except Exception as e:
+            print("Error: " + str(e))
+
         seqID += 1
         time.sleep(0.5)
