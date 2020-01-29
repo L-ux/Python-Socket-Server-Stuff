@@ -2,13 +2,32 @@ import socket
 
 if __name__ == '__main__':
     mySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connected = True
 
-    mySocket.connect(("127.0.0.1", 8222))
+    try:
+        mySocket.connect(("127.0.0.1", 8222))
+    except ConnectionRefusedError:
+        print("Failed to connect to Server")
+        connected = False
+    except:
+        print("Unknown error")
+        connected = False
 
     testString = "WHAT FUCK"
 
-    mySocket.send(testString.encode())
+    try:
+        mySocket.send(testString.encode())
+    except:
+        print("Unknown Error")
+        connected = False
 
-    while True:
-        data = mySocket.recv(4096)
-        print(data.decode("utf-8"))
+    while connected:
+        try:
+            data = mySocket.recv(4096)
+            print(data.decode("utf-8"))
+        except ConnectionResetError:
+            print("Server was closed unexpectedly")
+            connected = False
+        except:
+            print("Unknown Error")
+            connected = False
