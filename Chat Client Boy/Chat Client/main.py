@@ -21,10 +21,12 @@ class sharedData:
     def __init__(self):
         self.ip = ''
         self.port = 0
-        self.q = SimpleQueue()
+        self.inQ = SimpleQueue()
+        self.outQ = SimpleQueue()
 
 
 sData = sharedData()
+
 
 def receiveFunction(socket):
     global connected
@@ -34,12 +36,29 @@ def receiveFunction(socket):
             data = socket.recv(int.from_bytes(size, byteorder='big'))
 
             obj = json.loads(data.decode('utf-8'))
-            sData.q.put(obj)
+            sData.inQ.put(obj)
 
         except Exception as e:
             print("Error: " + str(e))
             connected = False
 
+
+def sendFunction(socket):
+    global connected
+    while connected:
+        while not sData.outQ.empty():
+            try:
+                msgdict = sData.outQ.get()
+                print(str(msgdict))
+                msgencode = json.dumps(msgdict).encode()
+                msglen = len(msgencode)
+
+                socket.send(msglen.to_bytes(2, byteorder='big'))
+                socket.send(msgencode)
+
+            except Exception as e:
+                print("Error: " + str(e))
+                connected = False
 
 
 def backgroundThread():
@@ -56,15 +75,16 @@ def backgroundThread():
                 connected = True
                 receiveThread = threading.Thread(target=receiveFunction, args=(mySocket,))
                 receiveThread.start()
+                sendThread = threading.Thread(target=sendFunction, args=(mySocket,))
+                sendThread.start()
 
             except ConnectionRefusedError:
                 print("Failed to connect to Server")
             except Exception as e:
                 print("Error: " + str(e))
 
-        #print('backgroundThread')
+        # print('backgroundThread')
         time.sleep(1)
-
 
     # if not connected, connect
     # if connected , do things
@@ -87,24 +107,33 @@ class ChatClient(QWidget):
     def timerEvent(self):
         #print('PyQt Timer Task')
         # read the q and do things
-        while not sData.q.empty():
-            data = sData.q.get()
+        while not sData.inQ.empty():
+            data = sData.inQ.get()
             if data['ID'] is 1:
                 self.clientList.clear()
                 self.clientList.addItems(data['users'])
+                self.clientList.setCurrentRow(0)
             elif data['ID'] is 4:
-                print()
-                # do the thing
+                self.chatOutput.appendPlainText(data['msg'])
             elif data['ID'] is 5:
                 self.chatOutput.appendPlainText(data['msg'])
             elif data['ID'] is 6:
-                print()
-                # do the thing
+                self.userName.setText(data['name'])
 
             print(data)
 
     def OnSendMessage(self):
         entry = self.userInput.text()
+
+        msgdict = {'msg': entry}
+        if str(self.clientList.currentItem().text()) == str("All"):
+            msgdict['ID'] = 5
+            sData.outQ.put(msgdict)
+        else:
+            msgdict['ID'] = 4
+            msgdict['target'] = self.clientList.currentItem().text()
+            sData.outQ.put(msgdict)
+
         print('OnSendMessage: '+entry)
 
         self.userInput.setText('')
@@ -120,7 +149,7 @@ class ChatClient(QWidget):
     def initUI(self):
         self.userInput = QLineEdit(self)
         self.userInput.setGeometry(10, 360, 580, 30)
-        self.userInput.returnPressed.connect(self.OnSendMessage)
+        self.userInput.returnPressed.connect(self.OnSendMessage)        ############
 
         self.chatOutput = QPlainTextEdit(self)
         self.chatOutput.setGeometry(10, 10, 400, 335)
@@ -132,7 +161,7 @@ class ChatClient(QWidget):
 
         self.clientList = QListWidget(self)
         self.clientList.setGeometry(420, 30, 170, 200)
-        self.clientList.clicked.connect(self.OnSetMessageTarget)
+        self.clientList.clicked.connect(self.OnSetMessageTarget)        ##############
         self.clientList.addItem('None')
         self.clientList.setCurrentRow(0)
 
@@ -142,7 +171,7 @@ class ChatClient(QWidget):
 
         self.userName = QLineEdit(self)
         self.userName.setGeometry(420, 315, 170, 30)
-        self.userName.returnPressed.connect(self.OnChangeName)
+        self.userName.returnPressed.connect(self.OnChangeName)          ##############
         self.userName.setText('Change Name')
 
         self.setGeometry(300, 300, 600, 400)
@@ -156,11 +185,12 @@ class ChatClient(QWidget):
         if currentBackgroundThread is not None:
             currentBackgroundThread.join()
 
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     client = ChatClient()
 
-    sData.ip = 'localhost'
+    sData.ip = '46.101.56.200'
     sData.port = 9000
 
     if len(sys.argv) > 1:
@@ -168,10 +198,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 2:
         sData.port = sys.argv[2]
 
-
-
     currentBackgroundThread = threading.Thread(target=backgroundThread, args=())
     currentBackgroundThread.start()
-
 
     sys.exit(app.exec_())
