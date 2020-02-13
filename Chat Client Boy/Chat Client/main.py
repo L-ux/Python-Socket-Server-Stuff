@@ -197,7 +197,7 @@ if __name__ == '__main__':
     sData.ip = '46.101.56.200'
     sData.port = 9000
 
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1:       # if args are given when running the client, it will overwrite the default values
         sData.ip = sys.argv[1]
     if len(sys.argv) > 2:
         sData.port = sys.argv[2]
