@@ -144,6 +144,10 @@ class ChatClient(QWidget):
 
     def OnChangeName(self):
         entry = self.userName.text()
+        
+        msgdict = {'ID':2, 'name':entry}
+        sData.outQ.put(msgdict)
+        
         print('OnChangeName: ' + entry)
 
     def initUI(self):
