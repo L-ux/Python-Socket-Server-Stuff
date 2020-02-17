@@ -17,6 +17,12 @@ host = ''
 port = 0
 
 
+class aPlayer:
+    def __init__(self, name, roomID):
+        self.name = name
+        self.room = roomID
+
+
 def debug_print(text):
     print(str(datetime.datetime.now()) + ':' + text)
 
@@ -38,6 +44,7 @@ def sendString(socket, str):
 
 
 # unique thread for each client to do their things
+# receives messages from clients and throws them onto the queue
 def clientReceive(sock):
 
     clientValid = True
@@ -94,13 +101,16 @@ def clientReceive(sock):
             messageQueue.put(ClientLost(sock))
 
 
+# the thread that gets new clients and throws their data into the queue
+# the thread that begins it all
 def acceptClients(serversocket):
     debug_print('acceptThread running')
-    while(True):
+    while True:
         (clientsocket, address) = serversocket.accept()
-        messageQueue.put(ClientJoined(clientsocket))
+        messageQueue.put(ClientJoined(clientsocket))  # put message onto q
 
 
+# remove zombies
 def handleClientLost(command):
     currentClientsLock.acquire()
     try:
@@ -112,6 +122,8 @@ def handleClientLost(command):
 
     currentClientsLock.release()
 
+
+# does thing when a client join message has been placed on the q
 def handleClientJoined(command):
     global clientIndex
 
@@ -125,12 +137,15 @@ def handleClientJoined(command):
     message = 'Joined server as:' + clientName
     debug_print('send:' + clientName + ':' + message)
 
+    # send message back to client
     sendString(command.socket, message)
 
+    # start thread for the particular client
     thread = threading.Thread(target=clientReceive, args=(command.socket,))
     thread.start()
 
 
+# does thing when client has sent a message
 def handleClientMessage(command):
 
     currentClientsLock.acquire()
@@ -139,7 +154,8 @@ def handleClientMessage(command):
 
     debug_print('send:' + clientName + ':'+command.message)
 
-    if sendString(command.socket, 'Server says client sent message:'+ command.message) == False:
+    # currently just tries sending a message back to the client, if it fails, terminate the client
+    if not sendString(command.socket, 'Server says client sent message:' + command.message):
         messageQueue.put(ClientLost(command.socket))
 
 
@@ -163,16 +179,18 @@ def main():
         debug_print(format(err))
         exit()
 
-    debug_print(host +':' + str(port))
+    debug_print(host + ':' + str(port))
 
+    # be able to listen for 5 clients
     serversocket.listen(5)
 
-    thread = threading.Thread(target=acceptClients,args=(serversocket,))
+    # start the thread that wait for clients to join then accepts them
+    thread = threading.Thread(target=acceptClients, args=(serversocket,))
     thread.start()
 
     while True:
 
-        if messageQueue.qsize()>0:
+        if messageQueue.qsize() > 0:
             command = messageQueue.get()
 
             if isinstance(command, ClientJoined):
