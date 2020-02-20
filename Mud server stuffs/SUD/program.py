@@ -60,7 +60,6 @@ def connThread():
     global isRunning
 
     while isRunning:
-        print("a")
         while not isConnected:
             try:
                 mySock.connect((sData.IP, sData.port))

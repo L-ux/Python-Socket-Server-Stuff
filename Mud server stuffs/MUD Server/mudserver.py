@@ -30,18 +30,20 @@ class Dungeon:
 
     def DisplayCurrentRoom(self, sock):
         exits = ["NORTH", "SOUTH", "EAST", "WEST"]
-        exitStr = ""
 
         currentClientsLock.acquire()
+
+        exitStr = self.roomMap[currentClients[sock].room].desc
+
+        exitStr += "\n\nExits: "
+
         for i in exits:
             if self.roomMap[currentClients[sock].room].hasExit(i.lower()):
                 exitStr += i + " "
 
         currentClientsLock.release()
 
-        msg = "Exits: " + exitStr
-
-        messageQueue.put(ClientSendMessage(sock, msg))
+        messageQueue.put(ClientSendMessage(sock, exitStr))
         return
 
     def isValidMove(self, direction, sock):
@@ -197,11 +199,13 @@ def handleClientJoined(command):
     currentClients[command.socket] = aPlayer(clientName, "room 0")
     currentClientsLock.release()
 
-    message = 'Joined server as:' + clientName
+    message = 'Joined server as:' + clientName + '\n\n\n'
     debug_print('send:' + clientName + ':' + message)
 
     # send message back to client
     sendString(command.socket, message)
+
+    theDungeon.DisplayCurrentRoom(command.socket)
 
     # start thread for the particular client
     thread = threading.Thread(target=clientReceive, args=(command.socket,))
