@@ -1,5 +1,6 @@
 from Dungeon import Dungeon
 
+
 class SUD:
     def __init__(self):
         self.myDungeon = 0

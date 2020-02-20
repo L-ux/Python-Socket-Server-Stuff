@@ -10,7 +10,7 @@ class Dungeon:
         print("init")
 
         self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here", "room 1", "", "", "")
-        self.roomMap["room 1"] = Room("room 1", "You are in room 1","", "room 0", "room 3", "room 2")
+        self.roomMap["room 1"] = Room("room 1", "You are in room 1", "", "room 0", "room 3", "room 2")
         self.roomMap["room 2"] = Room("room 2", "You are in room 2", "room 4", "", "", "")
         self.roomMap["room 3"] = Room("room 3", "You are in room 3", "", "", "", "room 1")
         self.roomMap["room 4"] = Room("room 4", "You are in room 4", "", "room 2", "room 5", "")

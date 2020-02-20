@@ -34,6 +34,8 @@ class Dungeon:
     def isValidMove(self, direction):
         return self.roomMap[self.currentRoom].hasExit(direction)
 
+    def isValidMove(self, direction, room):
+
     def MovePlayer(self, direction):
         if self.isValidMove(direction):
             if direction == "north":

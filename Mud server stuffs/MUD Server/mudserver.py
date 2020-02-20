@@ -5,6 +5,7 @@ import datetime
 
 from queue import *
 from commands import *
+from Dungeon import Dungeon
 
 
 messageQueue = Queue()
@@ -15,6 +16,8 @@ currentClientsLock = threading.Lock()
 
 host = ''
 port = 0
+
+theDungeon = Dungeon()
 
 
 class aPlayer:
@@ -53,9 +56,9 @@ def clientReceive(sock):
 
     currentClientsLock.acquire()
 
-    # if this clients socket is already connected, be done and end thread
+    # if this clients socket is already connected, be done and end thread (?)
     if sock in currentClients:
-        clientName = currentClients[sock]
+        clientName = currentClients[sock].name
     else:
         clientName = 'N/A'
         currentClientsLock.release()
@@ -73,7 +76,7 @@ def clientReceive(sock):
 
             # check to make sure this guy is still in the active list
             if sock in currentClients:
-                clientName = currentClients[sock]
+                clientName = currentClients[sock].name
             else:
                 clientName = 'N/A'
                 clientValid = False
@@ -114,7 +117,7 @@ def acceptClients(serversocket):
 def handleClientLost(command):
     currentClientsLock.acquire()
     try:
-        debug_print('Removing lost client:' + currentClients[command.socket])
+        debug_print('Removing lost client:' + currentClients[command.socket].name)
 
         del currentClients[command.socket]
     except:
@@ -131,7 +134,7 @@ def handleClientJoined(command):
     clientIndex += 1
 
     currentClientsLock.acquire()
-    currentClients[command.socket] = clientName
+    currentClients[command.socket] = aPlayer(clientName, 0)
     currentClientsLock.release()
 
     message = 'Joined server as:' + clientName
@@ -149,14 +152,21 @@ def handleClientJoined(command):
 def handleClientMessage(command):
 
     currentClientsLock.acquire()
-    clientName = currentClients[command.socket]
+    clientName = currentClients[command.socket].name
     currentClientsLock.release()
 
     debug_print('send:' + clientName + ':'+command.message)
 
     # currently just tries sending a message back to the client, if it fails, terminate the client
-    if not sendString(command.socket, 'Server says client sent message:' + command.message):
-        messageQueue.put(ClientLost(command.socket))
+    # if not sendString(command.socket, 'Server says client sent message:' + command.message):
+    #     messageQueue.put(ClientLost(command.socket))
+
+    user_input = command.message.split(' ')
+
+    user_input = [x for x in user_input if x != '']
+
+    if user_input[0].lower() == 'go':
+        if theDungeon.isValidMove(user_input[1].lower())
 
 
 def main():
@@ -180,6 +190,11 @@ def main():
         exit()
 
     debug_print(host + ':' + str(port))
+
+    global theDungeon
+    theDungeon.Init()
+
+    # dunThread = threading.Thread(target=dungeonThread, args=())
 
     # be able to listen for 5 clients
     serversocket.listen(5)
