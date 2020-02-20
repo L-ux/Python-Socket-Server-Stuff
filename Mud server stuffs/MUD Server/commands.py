@@ -19,6 +19,11 @@ class ClientMessage(CommandBase):
         self.message = message
 
 
+class ClientSendMessage(CommandBase):
+    def __init__(self, socket, message):
+        super().__init__(socket)
+        self.message = message
+
 
 
 

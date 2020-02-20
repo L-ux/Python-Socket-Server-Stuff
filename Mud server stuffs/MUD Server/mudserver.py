@@ -5,8 +5,7 @@ import datetime
 
 from queue import *
 from commands import *
-from Dungeon import Dungeon
-
+from Room import Room
 
 messageQueue = Queue()
 
@@ -17,6 +16,65 @@ currentClientsLock = threading.Lock()
 host = ''
 port = 0
 
+class Dungeon:
+    def __init__(self):
+        self.roomMap = {}
+
+    def Init(self):
+        self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here", "room 1", "", "", "")
+        self.roomMap["room 1"] = Room("room 1", "You are in room 1","", "room 0", "room 3", "room 2")
+        self.roomMap["room 2"] = Room("room 2", "You are in room 2", "room 4", "", "", "")
+        self.roomMap["room 3"] = Room("room 3", "You are in room 3", "", "", "", "room 1")
+        self.roomMap["room 4"] = Room("room 4", "You are in room 4", "", "room 2", "room 5", "")
+        self.roomMap["room 5"] = Room("room 5", "You are in room 5", "", "room 1", "", "room 4")
+
+    def DisplayCurrentRoom(self, sock):
+        exits = ["NORTH", "SOUTH", "EAST", "WEST"]
+        exitStr = ""
+
+        currentClientsLock.acquire()
+        for i in exits:
+            if self.roomMap[currentClients[sock].room].hasExit(i.lower()):
+                exitStr += i + " "
+
+        currentClientsLock.release()
+
+        msg = "Exits: " + exitStr
+
+        messageQueue.put(ClientSendMessage(sock, msg))
+        return
+
+    def isValidMove(self, direction, sock):
+        currentClientsLock.acquire()
+        wat = self.roomMap[currentClients[sock].room].hasExit(direction)
+        currentClientsLock.release()
+        return wat
+
+    def MovePlayer(self, direction, sock):
+        if self.isValidMove(direction, sock):
+            currentClientsLock.acquire()
+            if direction == "north":
+                currentClients[sock].room = self.roomMap[currentClients[sock].room].north
+                currentClientsLock.release()
+                return
+
+            if direction == "south":
+                currentClients[sock].room = self.roomMap[currentClients[sock].room].south
+                currentClientsLock.release()
+                return
+
+            if direction == "east":
+                currentClients[sock].room = self.roomMap[currentClients[sock].room].east
+                currentClientsLock.release()
+                return
+
+            if direction == "west":
+                currentClients[sock].room = self.roomMap[currentClients[sock].room].west
+                currentClientsLock.release()
+                return
+            currentClientsLock.release()
+
+
 theDungeon = Dungeon()
 
 
@@ -24,6 +82,8 @@ class aPlayer:
     def __init__(self, name, roomID):
         self.name = name
         self.room = roomID
+    def changeRoom(self, newRoom):
+        self.room = newRoom
 
 
 def debug_print(text):
@@ -134,7 +194,7 @@ def handleClientJoined(command):
     clientIndex += 1
 
     currentClientsLock.acquire()
-    currentClients[command.socket] = aPlayer(clientName, 0)
+    currentClients[command.socket] = aPlayer(clientName, "room 0")
     currentClientsLock.release()
 
     message = 'Joined server as:' + clientName
@@ -166,7 +226,27 @@ def handleClientMessage(command):
     user_input = [x for x in user_input if x != '']
 
     if user_input[0].lower() == 'go':
-        if theDungeon.isValidMove(user_input[1].lower())
+        if theDungeon.isValidMove(user_input[1].lower(), command.socket):
+            theDungeon.MovePlayer(user_input[1].lower(), command.socket)
+        else:
+            handleBadInput(command)
+    elif user_input[0].lower() == 'help':
+        msg = "Do Help things"
+        messageQueue.put(ClientSendMessage(command.socket, msg))
+    else:
+        handleBadInput(command)
+
+
+def handleSendMessage(command):
+    msg = command.message.encode()
+    msgLen = len(msg)
+    command.socket.send(msgLen.to_bytes(2, byteorder='big'))
+    command.socket.send(msg)
+
+
+def handleBadInput(command):
+    print("BAD INPUT")
+    messageQueue.put(ClientSendMessage(command.socket, "Bad input, try again"))
 
 
 def main():
@@ -216,6 +296,9 @@ def main():
 
             if isinstance(command, ClientMessage):
                 handleClientMessage(command)
+
+            if isinstance(command, ClientSendMessage):
+                handleSendMessage(command)
 
 
 if __name__ == '__main__':

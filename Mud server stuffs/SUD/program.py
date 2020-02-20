@@ -60,6 +60,7 @@ def connThread():
     global isRunning
 
     while isRunning:
+        print("a")
         while not isConnected:
             try:
                 mySock.connect((sData.IP, sData.port))
@@ -115,7 +116,7 @@ class QtClient(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    # Client = QTCLIENT()
+    Client = QtClient()
 
     sData.IP = 'localhost'
     sData.port = 9000
@@ -126,4 +127,7 @@ if __name__ == '__main__':
         if len(sys.argv) > 2:
             port = sys.argv[2]
 
-    connectThread = threading.Thread(target=connThread, args=())
+    connectThread = threading.Thread(target=connThread)
+    connectThread.start()
+
+    sys.exit(app.exec_())
