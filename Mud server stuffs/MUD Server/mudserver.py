@@ -16,13 +16,22 @@ currentClientsLock = threading.Lock()
 host = ''
 port = 0
 
+
+class aPlayer:
+    def __init__(self, name, roomID):
+        self.name = name
+        self.room = roomID
+    def changeRoom(self, newRoom):
+        self.room = newRoom
+
+
 class Dungeon:
     def __init__(self):
         self.roomMap = {}
 
     def Init(self):
         self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here", "room 1", "", "", "")
-        self.roomMap["room 1"] = Room("room 1", "You are in room 1","", "room 0", "room 3", "room 2")
+        self.roomMap["room 1"] = Room("room 1", "You are in room 1", "", "room 0", "room 3", "room 2")
         self.roomMap["room 2"] = Room("room 2", "You are in room 2", "room 4", "", "", "")
         self.roomMap["room 3"] = Room("room 3", "You are in room 3", "", "", "", "room 1")
         self.roomMap["room 4"] = Room("room 4", "You are in room 4", "", "room 2", "room 5", "")
@@ -32,18 +41,55 @@ class Dungeon:
         exits = ["NORTH", "SOUTH", "EAST", "WEST"]
 
         currentClientsLock.acquire()
+        cRoom = currentClients[sock].room
+        currentClientsLock.release()
 
-        exitStr = self.roomMap[currentClients[sock].room].desc
+        exitStr = "\n\n\n"
+
+        exitStr += self.roomMap[cRoom].desc + "\n"
+
+        # check for people in the room
+        inRoomNames = ""
+        currentClientsLock.acquire()
+
+        for user in currentClients:
+            if user != sock:  # dont look at self
+                if currentClients[user].room == cRoom:  # if there is someone in the same room as you
+                    inRoomNames += currentClients[user].name + ", "  # add their name to a list
+                    messageQueue.put(ClientSendMessage(user, currentClients[sock].name + " has entered the room"))
+
+        currentClientsLock.release()
+
+        if inRoomNames != "":
+            exitStr += "People in the room: " + inRoomNames
+        else:
+            exitStr += "You are alone in the room"
+
+        # end ppl check
 
         exitStr += "\n\nExits: "
 
         for i in exits:
-            if self.roomMap[currentClients[sock].room].hasExit(i.lower()):
+            if self.roomMap[cRoom].hasExit(i.lower()):
                 exitStr += i + " "
+
+        messageQueue.put(ClientSendMessage(sock, exitStr))
+        return
+
+    def LeaveRoom(self, sock):
+        inRoomNames = ""
+        currentClientsLock.acquire()
+
+        cRoom = currentClients[sock].room
+
+        for user in currentClients:
+            if user != sock:  # dont look at self
+                if currentClients[user].room == cRoom:  # if there is someone in the same room as you
+                    inRoomNames += currentClients[user].name + ", "  # add their name to a list
+                    messageQueue.put(ClientSendMessage(user, currentClients[sock].name + " has left the room"))
 
         currentClientsLock.release()
 
-        messageQueue.put(ClientSendMessage(sock, exitStr))
         return
 
     def isValidMove(self, direction, sock):
@@ -78,14 +124,6 @@ class Dungeon:
 
 
 theDungeon = Dungeon()
-
-
-class aPlayer:
-    def __init__(self, name, roomID):
-        self.name = name
-        self.room = roomID
-    def changeRoom(self, newRoom):
-        self.room = newRoom
 
 
 def debug_print(text):
@@ -199,7 +237,7 @@ def handleClientJoined(command):
     currentClients[command.socket] = aPlayer(clientName, "room 0")
     currentClientsLock.release()
 
-    message = 'Joined server as:' + clientName + '\n\n\n'
+    message = 'Joined server as:' + clientName
     debug_print('send:' + clientName + ':' + message)
 
     # send message back to client
@@ -231,7 +269,10 @@ def handleClientMessage(command):
 
     if user_input[0].lower() == 'go':
         if theDungeon.isValidMove(user_input[1].lower(), command.socket):
+            theDungeon.LeaveRoom(command.socket)
             theDungeon.MovePlayer(user_input[1].lower(), command.socket)
+            messageQueue.put(ClientSendMessage(command.socket, command.message))
+            theDungeon.DisplayCurrentRoom(command.socket)
         else:
             handleBadInput(command)
     elif user_input[0].lower() == 'help':
