@@ -21,8 +21,26 @@ class aPlayer:
     def __init__(self, name, roomID):
         self.name = name
         self.room = roomID
+
     def changeRoom(self, newRoom):
         self.room = newRoom
+
+
+def GetOthersInRoom(sock):
+    clientsInRoom = []
+
+    currentClientsLock.acquire()
+
+    cRoom = currentClients[sock].room
+
+    for user in currentClients:
+        if user != sock:  # don't look at self
+            if currentClients[user].room == cRoom:  # if user is in room
+                clientsInRoom.append(user)  # add them to a list
+
+    currentClientsLock.release()
+
+    return clientsInRoom
 
 
 class Dungeon:
@@ -277,6 +295,14 @@ def handleClientMessage(command):
             handleBadInput(command)
     elif user_input[0].lower() == 'say':
 
+        clientsInRoom = GetOthersInRoom(command.socket)
+        messageQueue.put(ClientSendMessage(command.socket, "You said: " + user_input[1]))  # send message for yourself to see
+        currentClientsLock.acquire()
+        name = currentClients[command.socket].name
+        currentClientsLock.release()
+
+        for c in clientsInRoom:
+            messageQueue.put(ClientSendMessage(c, name + " said: " + user_input[1]))
 
     elif user_input[0].lower() == 'help':
         msg = "Do Help things"
@@ -308,7 +334,7 @@ def main():
         host = sys.argv[1]
 
         if len(sys.argv) > 2:
-            port = sys.argv[2]
+            port = int(sys.argv[2])
 
     try:
         serversocket.bind((host, port))
