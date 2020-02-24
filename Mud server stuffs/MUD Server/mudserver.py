@@ -69,9 +69,9 @@ class Dungeon:
 
         exitStr += "\n\nExits: "
 
-        for i in exits:
-            if self.roomMap[cRoom].hasExit(i.lower()):
-                exitStr += i + " "
+        for e in exits:
+            if self.roomMap[cRoom].hasExit(e.lower()):
+                exitStr += e + " "
 
         messageQueue.put(ClientSendMessage(sock, exitStr))
         return
@@ -275,6 +275,9 @@ def handleClientMessage(command):
             theDungeon.DisplayCurrentRoom(command.socket)
         else:
             handleBadInput(command)
+    elif user_input[0].lower() == 'say':
+
+
     elif user_input[0].lower() == 'help':
         msg = "Do Help things"
         messageQueue.put(ClientSendMessage(command.socket, msg))
