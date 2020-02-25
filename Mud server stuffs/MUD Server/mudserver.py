@@ -285,30 +285,62 @@ def handleClientMessage(command):
 
     user_input = [x for x in user_input if x != '']
 
-    if user_input[0].lower() == 'go':
-        if theDungeon.isValidMove(user_input[1].lower(), command.socket):
-            theDungeon.LeaveRoom(command.socket)
-            theDungeon.MovePlayer(user_input[1].lower(), command.socket)
-            messageQueue.put(ClientSendMessage(command.socket, command.message))
-            theDungeon.DisplayCurrentRoom(command.socket)
-        else:
-            handleBadInput(command)
-    elif user_input[0].lower() == 'say':
+    keyword = user_input[0].lower()
 
-        clientsInRoom = GetOthersInRoom(command.socket)
-        messageQueue.put(ClientSendMessage(command.socket, "You said: " + user_input[1]))  # send message for yourself to see
-        currentClientsLock.acquire()
-        name = currentClients[command.socket].name
-        currentClientsLock.release()
-
-        for c in clientsInRoom:
-            messageQueue.put(ClientSendMessage(c, name + " said: " + user_input[1]))
-
-    elif user_input[0].lower() == 'help':
+    if keyword == 'go':
+        doClientMove(command, user_input[1])
+    elif keyword == 'say':
+        doClientMessage(command, user_input[1])
+    elif keyword == 'name':
+        doClientName(command, user_input[1])
+    elif keyword == 'help':
         msg = "Do Help things"
         messageQueue.put(ClientSendMessage(command.socket, msg))
     else:
         handleBadInput(command)
+
+
+# renames the client
+def doClientName(command, newName):
+
+    currentClientsLock.acquire()
+    oldName = currentClients[command.socket].name
+    currentClients[command.socket].name = newName
+    currentClientsLock.release()
+
+    clientsInRoom = GetOthersInRoom(command.socket)
+    messageQueue.put(
+        ClientSendMessage(command.socket, "You are now known as " + newName))  # send message for yourself to see
+    currentClientsLock.acquire()
+    name = currentClients[command.socket].name
+    currentClientsLock.release()
+
+    for c in clientsInRoom:
+        messageQueue.put(ClientSendMessage(c, oldName + " is now known as " + newName))
+
+
+# moves the client
+def doClientMove(command, direction):
+    if theDungeon.isValidMove(direction.lower(), command.socket):
+        theDungeon.LeaveRoom(command.socket)
+        theDungeon.MovePlayer(direction.lower(), command.socket)
+        messageQueue.put(ClientSendMessage(command.socket, command.message))
+        theDungeon.DisplayCurrentRoom(command.socket)
+    else:
+        handleBadInput(command)
+
+
+# sends a chat message to self and all others in room
+def doClientMessage(command, msg):
+    clientsInRoom = GetOthersInRoom(command.socket)
+    messageQueue.put(
+        ClientSendMessage(command.socket, "You said: " + msg))  # send message for yourself to see
+    currentClientsLock.acquire()
+    name = currentClients[command.socket].name
+    currentClientsLock.release()
+
+    for c in clientsInRoom:
+        messageQueue.put(ClientSendMessage(c, name + " said: " + msg))
 
 
 def handleSendMessage(command):
