@@ -1,11 +1,12 @@
 class Room:
-    def __init__(self, name, desc, north, south, west, east):
+    def __init__(self, name, desc, north, south, west, east, graffiti):
         self.name = name
         self.desc = desc
         self.north = north
         self.south = south
         self.east = east
         self.west = west
+        self.graffiti = graffiti
 
     def hasExit(self, direction):
         if(direction == "north") and (self.north != ""):

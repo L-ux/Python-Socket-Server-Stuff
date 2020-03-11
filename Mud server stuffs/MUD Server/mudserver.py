@@ -48,12 +48,12 @@ class Dungeon:
         self.roomMap = {}
 
     def Init(self):
-        self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here", "room 1", "", "", "")
-        self.roomMap["room 1"] = Room("room 1", "You are in room 1", "", "room 0", "room 3", "room 2")
-        self.roomMap["room 2"] = Room("room 2", "You are in room 2", "room 4", "", "", "")
-        self.roomMap["room 3"] = Room("room 3", "You are in room 3", "", "", "", "room 1")
-        self.roomMap["room 4"] = Room("room 4", "You are in room 4", "", "room 2", "room 5", "")
-        self.roomMap["room 5"] = Room("room 5", "You are in room 5", "", "room 1", "", "room 4")
+        self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here", "room 1", "", "", "", "")
+        self.roomMap["room 1"] = Room("room 1", "You are in room 1", "", "room 0", "room 3", "room 2", "")
+        self.roomMap["room 2"] = Room("room 2", "You are in room 2", "room 4", "", "", "", "")
+        self.roomMap["room 3"] = Room("room 3", "You are in room 3", "", "", "", "room 1", "")
+        self.roomMap["room 4"] = Room("room 4", "You are in room 4", "", "room 2", "room 5", "", "")
+        self.roomMap["room 5"] = Room("room 5", "You are in room 5", "", "room 1", "", "room 4", "")
 
     def DisplayCurrentRoom(self, sock):
         exits = ["NORTH", "SOUTH", "EAST", "WEST"]
@@ -93,6 +93,18 @@ class Dungeon:
 
         messageQueue.put(ClientSendMessage(sock, exitStr))
         return
+
+    def readGraffiti(self, room):
+        msg = self.roomMap[room].graffiti
+        if msg == '':
+            return 'There is currently nothing written on the walls in this room.\n'
+        else:
+            return 'You look at the walls around you and see the following messages:\n ' + msg
+
+    def writeGraffiti(self, room, message):
+        msg = self.roomMap[room].graffiti
+        self.roomMap[room].graffiti = msg + message + "\n"
+        return "You have added your message to the walls"
 
     def LeaveRoom(self, sock):
         inRoomNames = ""
@@ -273,6 +285,7 @@ def handleClientMessage(command):
 
     currentClientsLock.acquire()
     clientName = currentClients[command.socket].name
+    clientRoom = currentClients[command.socket].room
     currentClientsLock.release()
 
     debug_print('send:' + clientName + ':'+command.message)
@@ -290,11 +303,30 @@ def handleClientMessage(command):
     if keyword == 'go':
         doClientMove(command, user_input[1])
     elif keyword == 'say':
-        doClientMessage(command, user_input[1])
+        doClientMessageAll(command, user_input[1])
     elif keyword == 'name':
         doClientName(command, user_input[1])
+    elif keyword == 'graffiti':
+        # TODO: Add some funkin error handling here
+        if user_input[1].lower() == 'read':
+
+            msg = theDungeon.readGraffiti(clientRoom)
+            messageQueue.put(ClientSendMessage(command.socket, msg))
+        elif user_input[1].lower() == 'write':
+            graffitiText = 0
+            for i in range(2, user_input.__len__()):
+                graffitiText += user_input[i] + ' '
+            msg = theDungeon.writeGraffiti(clientRoom, graffitiText)
+            messageQueue.put(ClientSendMessage(command.socket, msg))
     elif keyword == 'help':
-        msg = "Do Help things"
+        msg = "\n\\\\\\\\\\\\" \
+              "\n\'go [direction]\' to move between rooms" \
+              "\n\'say [message]\' to talk to everyone in the same room as you" \
+              "\n\'name [name] to rename yourself\'" \
+              "\n\'graffiti [read]/[write (message)]\' to add a message to the wall of the room you are currently in" \
+              "\n\'\'" \
+              "\n\'\'" \
+              "\n//////\n"
         messageQueue.put(ClientSendMessage(command.socket, msg))
     else:
         handleBadInput(command)
@@ -331,7 +363,7 @@ def doClientMove(command, direction):
 
 
 # sends a chat message to self and all others in room
-def doClientMessage(command, msg):
+def doClientMessageAll(command, msg):
     clientsInRoom = GetOthersInRoom(command.socket)
     messageQueue.put(
         ClientSendMessage(command.socket, "You said: " + msg))  # send message for yourself to see
