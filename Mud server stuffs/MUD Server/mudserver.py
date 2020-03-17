@@ -3,6 +3,8 @@ import socket
 import threading
 import datetime
 
+import json  # for testing
+
 from queue import *
 from commands import *
 from Room import Room
@@ -216,16 +218,19 @@ def clientReceive(sock):
                 # on OSX, 'closed' sockets send 0 bytes, so trap this
                 raise socket.error
 
-            size = int.from_bytes(data, byteorder='big')
+            size = int.from_bytes(data, byteorder='big')  # size of the data packey we about to recieve
 
-            data = sock.recv(size)
+            data = sock.recv(size) # the actual packet of data, before any decryption
+
+            StringTest(sock, size, data)  # TEST FUNCTION
+            # JsonTest(sock, size, data)  # TEST FUNCTION
 
             if len(data) > 0:
                 incoming_msg = data.decode('utf-8')
 
                 debug_print('recv:' + clientName + ':' + incoming_msg)
 
-                messageQueue.put(ClientMessage(sock, incoming_msg))
+#                messageQueue.put(ClientMessage(sock, incoming_msg))  # comment this line when doing testing
             else:
                 raise socket.error
         except socket.error:
@@ -233,6 +238,34 @@ def clientReceive(sock):
             clientValid = False
             messageQueue.put(ClientLost(sock))
 
+
+def StringTest(sock, size, data):
+    # receive
+    myData = data.decode('utf-8')
+    print("StringTest recieved: " + myData) 
+
+    #send
+    myTime = datetime.time()
+    seconds = (myTime.strftime("%S.%f")[:-3]).encode()  # we will be using the time here bcuz why not
+
+    sock.send(len(seconds).to_bytes(2, byteorder='big'))
+    sock.send(seconds)
+
+
+def JsonTest(sock, size, data):
+    # receive
+    myData = json.loads(data.decode('utf-8'))
+    print("JsonTest received: " + myData)
+
+    #send
+    myTime = datetime.time()
+    seconds = myTime.strftime("%S.%f")[:-3]
+
+    myDict = {"time" : seconds}
+    msgEnc = json.dumps(myDict).encode()
+    
+    sock.send(len(msgEnc).to_bytes(2, byteorder='big'))
+    sock.send(msgEnc)
 
 # the thread that gets new clients and throws their data into the queue
 # the thread that begins it all
