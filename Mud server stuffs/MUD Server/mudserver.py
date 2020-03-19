@@ -267,6 +267,7 @@ def JsonTest(sock, size, data):
     sock.send(len(msgEnc).to_bytes(2, byteorder='big'))
     sock.send(msgEnc)
 
+
 # the thread that gets new clients and throws their data into the queue
 # the thread that begins it all
 def acceptClients(serversocket):

@@ -27,23 +27,33 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5 import QtCore
-from Queue import SimpleQueue
+from queue import SimpleQueue
 
+import json
+import sys
 import datetime
 import socket
 import threading
-
+import time
 
 class globalData:
     def __init__(self):
         self.ip = ''
         self.port = 0
-        self.inQ = SimpleQueue()
-        self.outQ = SimpleQueue()
+
+        self.forStr = 0
+        self.StrInQ = SimpleQueue()
+        self.StrOutQ = SimpleQueue()
+
+        self.forJson = 0
+        self.JsonInQ = SimpleQueue()
+        self.JsonOutQ = SimpleQueue()
+
         self.startTime = 0
         self.endTime = 0
 
 
+client = 0
 gdata = globalData()
 isRun = True
 isCon = False
@@ -52,7 +62,10 @@ isCon = False
 class TestClient(QWidget):
 
     def __init__(self):
+        super().__init__()
         self.outBox = 0
+        self.button1 = QPushButton()
+        self.button2 = 0
 
         self.initUI()
 
@@ -65,14 +78,18 @@ class TestClient(QWidget):
     def initUI(self):
 
         self.button1 = QPushButton("String Test")
-        self.button1 = setGeometry(10, 10, 235, 140)
+        self.button1.setGeometry(10, 10, 235, 140)
         # self.button1.setCheckable(True)
         self.button1.clicked.connect(self.doStringTest)
+        self.button1.setParent(self)
+        self.button1.show()
 
-        self.button2 = QPushButton("String Test")
-        self.button2 = setGeometry(255, 10, 235, 140)
+        self.button2 = QPushButton("Json Test")
+        self.button2.setGeometry(255, 10, 235, 140)
         # self.button2.setCheckable(True)
-        self.button2.clicked.connect(self.doStringTest)
+        self.button2.clicked.connect(self.doJsonTest)
+        self.button2.setParent(self)
+        self.button2.show()
 
         self.outBox = QLineEdit(self)
         self.outBox.setGeometry(10, 160, 480, 30)
@@ -83,28 +100,67 @@ class TestClient(QWidget):
         self.show()
 
 
-def recFunc(socket):
-    global connected
-    while connected:
-        try:
-            size = socket.recv(2)
-            data = socket.recv(int.from_bytes(size, byteorder='big'))
-
-            obj = json.loads(data.decode('utf-8'))
-            sData.inQ.put(obj)
-
-        except Exception as e:
-            print("Error: " + str(e))
-            connected = False
-
-
-def senFunc(socket):
-    global connected
-    while connected:
-        while not sData.outQ.empty():
+def recFuncStr(socket):
+    global isCon
+    global gdata
+    while isCon:
+        while gdata.forStr is not 0:
             try:
-                msgdict = sData.outQ.get()
-                print(str(msgdict))
+                size = socket.recv(2)
+                data = socket.recv(int.from_bytes(size, byteorder='big'))
+
+                obj = data.decode('utf-8')
+                gdata.StrInQ.put(obj)
+                gdata.forStr -= 1
+
+            except Exception as e:
+                print("Error: " + str(e))
+                isCon = False
+
+
+def recFuncJson(socket):
+    global isCon
+    global gdata
+    while isCon:
+        while gdata.forJson is not 0:
+            try:
+                size = socket.recv(2)
+                data = socket.recv(int.from_bytes(size, byteorder='big'))
+
+                obj = json.loads(data.decode('utf-8'))
+                gdata.JsonInQ.put(obj)
+                gdata.forJson -= 1
+
+            except Exception as e:
+                print("Error: " + str(e))
+                isCon = False
+
+
+def senFuncStr(socket):
+    global isCon
+    global gdata
+    while isCon:
+        while not gdata.StrOutQ.empty():
+            try:
+                msgdict = gdata.StrOutQ.get()
+                msgencode = msgdict.encode()
+                msglen = len(msgencode)
+
+                socket.send(msglen.to_bytes(2, byteorder='big'))
+                socket.send(msgencode)
+
+            except Exception as e:
+                print("Error: " + str(e))
+                isCon = False
+
+
+def senFuncJson(socket):
+    global isCon
+    global gdata
+    while isCon:
+        while not gdata.JsonOutQ.empty():
+            try:
+                msgdict = gdata.JsonOutQ.get()
                 msgencode = json.dumps(msgdict).encode()
                 msglen = len(msgencode)
 
@@ -113,7 +169,7 @@ def senFunc(socket):
 
             except Exception as e:
                 print("Error: " + str(e))
-                connected = False
+                isCon = False
 
 
 def BGThread():
@@ -126,14 +182,18 @@ def BGThread():
             try:
                 mySock.connect((gdata.ip, gdata.port))
                 isCon = True
-                recThread = threading.Thread(target=recFunc, args=(mySock,))
-                recThread.start()
-                senThread = threading.Thread(target=senFunc, args=(mySock,))
-                senThread.start()
+                recThreadJson = threading.Thread(target=recFuncJson, args=(mySock,))
+                recThreadJson.start()
+                senThreadJson = threading.Thread(target=senFuncJson, args=(mySock,))
+                senThreadJson.start()
+
+                recThreadStr = threading.Thread(target=recFuncStr, args=(mySock,))
+                recThreadStr.start()
+                senThreadStr = threading.Thread(target=senFuncStr, args=(mySock,))
+                senThreadStr.start()
             except Exception as e:
                 print("ERROR: " + str(e))
         time.sleep(1)
-
 
 
 if __name__ == '__main__':
@@ -146,6 +206,7 @@ if __name__ == '__main__':
     cBGThread = threading.Thread(target=BGThread, args=())
     cBGThread.start()
 
+    isRun = False
     sys.exit(app.exec_())
 
 
