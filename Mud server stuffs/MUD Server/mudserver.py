@@ -2,6 +2,7 @@ import sys
 import socket
 import threading
 import datetime
+import time
 
 import json  # for testing
 
@@ -50,7 +51,8 @@ class Dungeon:
         self.roomMap = {}
 
     def Init(self):
-        self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here", "room 1", "", "", "", "")
+        self.roomMap["room 0"] = Room("room 0", "You are standing in the entrance hall\nAll adventures start here",
+                                      "room 1", "", "", "", "")
         self.roomMap["room 1"] = Room("room 1", "You are in room 1", "", "room 0", "room 3", "room 2", "")
         self.roomMap["room 2"] = Room("room 2", "You are in room 2", "room 4", "", "", "", "")
         self.roomMap["room 3"] = Room("room 3", "You are in room 3", "", "", "", "room 1", "")
@@ -164,7 +166,6 @@ def debug_print(text):
 
 # sends a message to the player
 def sendString(socket, str):
-
     data = bytes(str, 'utf-8')
     try:
         if socket.send(len(data).to_bytes(2, byteorder='big')) == 0:
@@ -181,7 +182,6 @@ def sendString(socket, str):
 # unique thread for each client to do their things
 # receives messages from clients and throws them onto the queue
 def clientReceive(sock):
-
     clientValid = True
 
     clientName = ''
@@ -220,9 +220,9 @@ def clientReceive(sock):
 
             size = int.from_bytes(data, byteorder='big')  # size of the data packey we about to recieve
 
-            data = sock.recv(size) # the actual packet of data, before any decryption
+            data = sock.recv(size)  # the actual packet of data, before any decryption
 
-            StringTest(sock, size, data)  # TEST FUNCTION
+            # StringTest(sock, size, data)  # TEST FUNCTION
             # JsonTest(sock, size, data)  # TEST FUNCTION
 
             if len(data) > 0:
@@ -230,7 +230,7 @@ def clientReceive(sock):
 
                 debug_print('recv:' + clientName + ':' + incoming_msg)
 
-#                messageQueue.put(ClientMessage(sock, incoming_msg))  # comment this line when doing testing
+                messageQueue.put(ClientMessage(sock, incoming_msg))  # ANTI TEST FUNCTION
             else:
                 raise socket.error
         except socket.error:
@@ -242,30 +242,30 @@ def clientReceive(sock):
 def StringTest(sock, size, data):
     # receive
     myData = data.decode('utf-8')
-    print("StringTest recieved: " + myData) 
+    print("StringTest recieved: " + myData)
 
-    #send
-    myTime = datetime.time()
-    seconds = (myTime.strftime("%S.%f")[:-3]).encode()  # we will be using the time here bcuz why not
+    # send time and message size
+    myMessage = str(round(time.time() % 60, 3)) + ' ' + str(size)
+    encMessage = myMessage.encode()
 
-    sock.send(len(seconds).to_bytes(2, byteorder='big'))
-    sock.send(seconds)
+    sock.send(len(encMessage).to_bytes(2, byteorder='big'))
+    sock.send(encMessage)
 
 
 def JsonTest(sock, size, data):
     # receive
     myData = json.loads(data.decode('utf-8'))
-    print("JsonTest received: " + myData)
+    print(myData)  # error i cba to fix right now
 
-    #send
-    myTime = datetime.time()
-    seconds = myTime.strftime("%S.%f")[:-3]
+    # send
+    myTime = round(time.time() % 60, 3)
 
-    myDict = {"time" : seconds}
+    myDict = {"time": myTime, "size": size}
     msgEnc = json.dumps(myDict).encode()
-    
+    print("JsonTest boutta send")
     sock.send(len(msgEnc).to_bytes(2, byteorder='big'))
     sock.send(msgEnc)
+    print("JsonTest sent")
 
 
 # the thread that gets new clients and throws their data into the queue
@@ -305,9 +305,9 @@ def handleClientJoined(command):
     debug_print('send:' + clientName + ':' + message)
 
     # send message back to client
-    sendString(command.socket, message)
+    sendString(command.socket, message)  # ANTI TEST FUNCTION
 
-    theDungeon.DisplayCurrentRoom(command.socket)
+    theDungeon.DisplayCurrentRoom(command.socket)  # ANTI TEST FUNCTION
 
     # start thread for the particular client
     thread = threading.Thread(target=clientReceive, args=(command.socket,))
@@ -316,13 +316,12 @@ def handleClientJoined(command):
 
 # does thing when client has sent a message
 def handleClientMessage(command):
-
     currentClientsLock.acquire()
     clientName = currentClients[command.socket].name
     clientRoom = currentClients[command.socket].room
     currentClientsLock.release()
 
-    debug_print('send:' + clientName + ':'+command.message)
+    debug_print('send:' + clientName + ':' + command.message)
 
     # currently just tries sending a message back to the client, if it fails, terminate the client
     # if not sendString(command.socket, 'Server says client sent message:' + command.message):
@@ -337,21 +336,23 @@ def handleClientMessage(command):
     if keyword == 'go':
         doClientMove(command, user_input[1])
     elif keyword == 'say':
-        doClientMessageAll(command, user_input[1])
+        saidMessage = ' '.join(user_input[1:])
+        doClientMessageAll(command, saidMessage)
     elif keyword == 'name':
         doClientName(command, user_input[1])
     elif keyword == 'graffiti':
-        # TODO: Add some funkin error handling here
-        if user_input[1].lower() == 'read':
-
-            msg = theDungeon.readGraffiti(clientRoom)
-            messageQueue.put(ClientSendMessage(command.socket, msg))
-        elif user_input[1].lower() == 'write':
-            graffitiText = 0
-            for i in range(2, user_input.__len__()):
-                graffitiText += user_input[i] + ' '
-            msg = theDungeon.writeGraffiti(clientRoom, graffitiText)
-            messageQueue.put(ClientSendMessage(command.socket, msg))
+        if len(user_input) > 1:
+            if user_input[1].lower() == 'read':
+                msg = theDungeon.readGraffiti(clientRoom)
+                messageQueue.put(ClientSendMessage(command.socket, msg))
+            elif user_input[1].lower() == 'write':
+                graffitiText = ' '.join(user_input[2:])
+                msg = theDungeon.writeGraffiti(clientRoom, graffitiText)
+                messageQueue.put(ClientSendMessage(command.socket, msg))
+            else:
+                handleBadInput(command)
+        else:
+            handleBadInput(command)
     elif keyword == 'help':
         msg = "\n\\\\\\\\\\\\" \
               "\n\'go [direction]\' to move between rooms" \
@@ -368,7 +369,6 @@ def handleClientMessage(command):
 
 # renames the client
 def doClientName(command, newName):
-
     currentClientsLock.acquire()
     oldName = currentClients[command.socket].name
     currentClients[command.socket].name = newName
